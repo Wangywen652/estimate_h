@@ -7,7 +7,7 @@ K_IU  = 6;
 NR_IU = 2;
 M     = 16;      % 雷达接收天线数
 noise = 1;       % 雷达端噪声方差
-num_MC = 500;    % 蒙特卡洛仿真次数
+num_MC = 1000;    % 蒙特卡洛仿真次数
 
 fprintf('\n======================================\n');
 fprintf('>>> 当前正在独立计算 L = %d 的实际误差 <<<\n', L);
@@ -43,35 +43,25 @@ for i_PL = 1:length(PL_dBm)
     SE_mc = zeros(num_MC, 1);
     % 蒙特卡洛仿真计算误差
     for mc = 1:num_MC
-        % 每次随机生成新的符号矩阵 S 并构造 X
+        % 每次随机生成新的符号矩阵 S 并构造 X (保持不变)
         X = zeros(Nt_BS, L);
         for k = 1:K_IU
             S_k = (randn(NR_IU, L) + 1j * randn(NR_IU, L)) / sqrt(2);
             X = X + W_opt{k} * S_k;
         end
-
-        % 向量化观测模型: y_R = A * h + n, 其中 A = X^T \kron I_M
-        %A = kron(X.', eye(M));
-        %n_r = (randn(M * L, 1) + 1j * randn(M * L, 1)) * sqrt(noise / 2);
-        %y_r = A * h_true + n_r;
-
-        % LS 估算并得到 h_hat
-        %h_hat = pinv(A' * A) * (A' * y_r);
-        % 模拟雷达接收端的矩阵形式信号 Y_R
-       
-        N_r = (randn(M, L) + 1j * randn(M, L)) * sqrt(noise / 2);
-        Y_R_mat = H_true_mat * X + N_r;
-        
-        % 注意：这里的右除 '/' 等价于乘以后面矩阵的逆
-        H_hat_mat = Y_R_mat * pinv(X);
-        
-        % 将估计出的矩阵重新展平成列向量
-        h_hat = H_hat_mat(:);
-
-        % 记录单次平方误差
+        % 构造 A 矩阵，对应公式(16)中的 (X^T \otimes I_M)
+        A = kron(X.', eye(M));
+        % 构造向量化噪声，对应公式(16)中的 \nu_R
+        nu_R = (randn(M * L, 1) + 1j * randn(M * L, 1)) * sqrt(noise / 2);
+        %生成雷达接收信号，对应公式(16)的 y_R = (X^T \otimes I_M)h + \nu_R
+        y_r = A * h_true + nu_R;
+        %进行 Least Squares 估计，对应公式(21)
+        % 其中 A' 对应 (X^T \otimes I_M)^H
+        % pinv(A' * A) 对应 [(X^T \otimes I_M)^H(X^T \otimes I_M)]^{\dagger}
+        h_hat = pinv(A' * A) * (A' * y_r);
+        % 记录单次平方误差 (保持不变)
         SE_mc(mc) = norm(h_true - h_hat)^2;
     end
-    
     % 计算平均误差和归一化误差
     Actual_SE_vs_PL(i_PL) = mean(SE_mc);
     Actual_NSE_vs_PL(i_PL) = Actual_SE_vs_PL(i_PL) / norm_h_true_sq;

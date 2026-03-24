@@ -1,7 +1,7 @@
 clc; clear; close all;
 
 % 设置需要绘制的 L 序列
-L_vec = 24;
+L_vec = [24,32,48,64];
 colors = {'#0072BD', '#D95319', '#EDB120', '#7E2F8E'}; 
 markers = {'o', 's', 'd', '^'};
 
